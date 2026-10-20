@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // KHOJO reads and writes Firestore through the server-side Admin SDK.
+    // Deny direct client access so role and booking checks cannot be bypassed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

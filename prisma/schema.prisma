@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  CUSTOMER
+  WORKER
+  ADMIN
+}
+enum AvailabilityStatus {
+  AVAILABLE
+  BUSY
+  UNAVAILABLE
+}
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  IN_PROGRESS
+  COMPLETED
+}
+enum ServiceType {
+  HOURLY
+  FULL_DAY
+}
+enum NotificationType {
+  BOOKING_UPDATE
+  MESSAGE
+  SYSTEM
+}
+model User {
+  id String @id @default(cuid())
+  phone String @unique
+  role Role @default(CUSTOMER)
+  name String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customer CustomerProfile?
+  worker WorkerProfile?
+  bookings Booking[] @relation("CustomerBookings")
+  notifications Notification[]
+  supportRequests SupportRequest[]
+  auditLogs AuditLog[] @relation("ActorLogs")
+  @@index([role, createdAt])
+}
+model CustomerProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  locality String?
+  city String?
+  lat Float?
+  lng Float?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favorites FavoriteWorker[]
+}
+model WorkerProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  description String? @db.Text
+  experienceYears Int @default(0)
+  hourlyRate Int
+  dailyRate Int
+  fullDayHours Int @default(8)
+  city String
+  locality String
+  serviceRadiusKm Int @default(15)
+  lat Float?
+  lng Float?
+  availabilityStatus AvailabilityStatus @default(AVAILABLE)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  photoUrl String?
+  avgRating Float @default(0)
+  completedJobs Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills WorkerSkill[]
+  availability WorkerAvailability[]
+  portfolio WorkerPortfolio[]
+  bookingWorkers BookingWorker[]
+  reviews Review[]
+  favorites FavoriteWorker[]
+  serviceAreas ServiceArea[]
+  @@index([city, availabilityStatus, verificationStatus])
+  @@index([lat, lng])
+  @@index([hourlyRate, avgRating])
+}
+model SkillCategory {
+  id String @id @default(cuid())
+  name String @unique
+  slug String @unique
+  active Boolean @default(true)
+  workerSkills WorkerSkill[]
+  bookings Booking[]
+}
+model WorkerSkill {
+  workerId String
+  skillId String
+  primary Boolean @default(false)
+  worker WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  skill SkillCategory @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  @@id([workerId, skillId])
+  @@index([skillId])
+}
+model WorkerPortfolio {
+  id String @id @default(cuid())
+  workerId String
+  imageUrl String
+  caption String?
+  createdAt DateTime @default(now())
+  worker WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+}
+model WorkerAvailability {
+  id String @id @default(cuid())
+  workerId String
+  weekday Int
+  startMinute Int
+  endMinute Int
+  active Boolean @default(true)
+  worker WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  @@unique([workerId, weekday, startMinute])
+}
+model Booking {
+  id String @id @default(cuid())
+  customerId String
+  skillId String
+  serviceType ServiceType
+  workersRequired Int @default(1)
+  startAt DateTime
+  endAt DateTime
+  days Int @default(1)
+  address String
+  locality String
+  city String
+  lat Float?
+  lng Float?
+  description String? @db.Text
+  labourEstimate Int
+  platformFee Int @default(0)
+  taxEstimate Int @default(0)
+  totalEstimate Int
+  currency String @default("INR")
+  status BookingStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customer User @relation("CustomerBookings", fields: [customerId], references: [id])
+  skill SkillCategory @relation(fields: [skillId], references: [id])
+  workers BookingWorker[]
+  history BookingStatusHistory[]
+  reviews Review[]
+  @@index([customerId, status, startAt])
+  @@index([status, startAt])
+}
+model BookingWorker {
+  id String @id @default(cuid())
+  bookingId String
+  workerId String
+  status BookingStatus @default(PENDING)
+  hourlyRateSnapshot Int
+  dailyRateSnapshot Int
+  labourEstimate Int
+  scheduledStartAt DateTime
+  scheduledEndAt DateTime
+  respondedAt DateTime?
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  worker WorkerProfile @relation(fields: [workerId], references: [id])
+  @@unique([bookingId, workerId])
+  @@index([workerId, status])
+}
+model BookingStatusHistory {
+  id String @id @default(cuid())
+  bookingId String
+  status BookingStatus
+  note String?
+  actorId String?
+  createdAt DateTime @default(now())
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  @@index([bookingId, createdAt])
+}
+model Review {
+  id String @id @default(cuid())
+  bookingId String
+  workerId String
+  customerId String
+  rating Int
+  comment String? @db.Text
+  createdAt DateTime @default(now())
+  booking Booking @relation(fields: [bookingId], references: [id])
+  worker WorkerProfile @relation(fields: [workerId], references: [id])
+  @@unique([bookingId, workerId])
+  @@index([workerId, createdAt])
+}
+model FavoriteWorker {
+  customerId String
+  workerId String
+  createdAt DateTime @default(now())
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  worker WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  @@id([customerId, workerId])
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  type NotificationType
+  title String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, readAt, createdAt])
+}
+model ServiceArea {
+  id String @id @default(cuid())
+  workerId String
+  city String
+  locality String
+  worker WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  @@index([city, locality])
+}
+model PlatformSettings {
+  id Int @id @default(1)
+  platformFeePercent Float @default(0)
+  taxPercent Float @default(0)
+  minimumHourlyHours Int @default(1)
+  fullDayHours Int @default(8)
+  defaultSearchRadiusKm Int @default(15)
+  updatedAt DateTime @updatedAt
+}
+model SupportRequest {
+  id String @id @default(cuid())
+  userId String?
+  subject String
+  message String @db.Text
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+  user User? @relation(fields: [userId], references: [id])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String?
+  action String
+  entity String
+  entityId String
+  details Json?
+  createdAt DateTime @default(now())
+  actor User? @relation("ActorLogs", fields: [actorId], references: [id])
+  @@index([createdAt, action])
+}
+model OtpChallenge {
+  phone String @id
+  codeHash String
+  expiresAt DateTime
+  attempts Int @default(0)
+  resendAvailableAt DateTime
+  updatedAt DateTime @updatedAt
+}
+model OtpRateLimit {
+  phone String @id
+  windowStartedAt DateTime
+  count Int @default(0)
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,3 @@
+"use client";
+import {useRouter} from "next/navigation";
+export function BookingActions({id}:{id:string}){const router=useRouter();async function send(decision:"ACCEPTED"|"REJECTED"){const r=await fetch(`/api/bookings/${id}/respond`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision})});const d=await r.json();if(!r.ok)alert(d.error);router.refresh()}return <div style={{display:"flex",gap:8}}><button className="button small" onClick={()=>send("ACCEPTED")}>Accept</button><button className="button light small" onClick={()=>send("REJECTED")}>Reject</button></div>}
